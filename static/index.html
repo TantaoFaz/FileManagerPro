@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DuckBusca</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Syne:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0c0c0b;--surface:#161614;--border:#272723;--text:#e2dfd6;--muted:#6b6960;--accent:#d4b96a;--green:#7bbfa0}
+body{background:var(--bg);color:var(--text);font-family:Syne,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem}
+.logo-sm{font-size:.95rem;font-weight:700;color:var(--accent);white-space:nowrap}
+.logo-sm span{color:var(--text)}
+#q{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:.45rem 1rem;color:var(--text);font-family:'DM Mono',monospace;font-size:.85rem;outline:none;transition:border-color .2s}
+#q:focus{border-color:var(--accent)}
+#q::placeholder{color:var(--muted)}
+#topbar button{background:var(--accent);color:#0c0c0b;border:none;border-radius:20px;padding:.45rem 1rem;font-family:Syne,sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;white-space:nowrap}
+main{width:100%;max-width:680px;padding:5rem 1.5rem 2rem;display:flex;flex-direction:column;gap:1.5rem}
+.status{font-family:'DM Mono',monospace;font-size:.8rem;color:var(--muted)}
+.result{display:flex;flex-direction:column;gap:.3rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);animation:fi .3s ease both}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.rurl{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rtitle{font-size:1rem;font-weight:700;color:var(--text);line-height:1.3}
+.rtitle:hover{color:var(--accent)}
+.rdesc{font-size:.85rem;color:var(--muted);line-height:1.5}
+.r-actions{display:flex;gap:.5rem;margin-top:.2rem}
+.r-btn{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:.2rem .5rem;cursor:pointer;text-decoration:none;transition:all .15s}
+.r-btn:hover{color:var(--accent);border-color:var(--accent)}
+.empty{font-family:'DM Mono',monospace;font-size:.85rem;color:var(--muted);text-align:center;padding:3rem 0}
+.pag{display:flex;justify-content:center;gap:.5rem;padding:1rem 0 2rem}
+.pb{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.8rem;padding:.4rem .8rem;cursor:pointer}
+.pb:hover,.pb.on{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="logo-sm">duck<span>busca</span></div>
+  <input id="q" type="text" placeholder="pesquisar..." autocomplete="off"/>
+  <button onclick="go(1)">→</button>
+</div>
+<main id="res"><div class="empty">Digite algo para buscar.</div></main>
+<div class="pag" id="pag"></div>
+<script>
+document.getElementById('q').addEventListener('keydown', e => {
+  if(e.key === 'Enter') go(1);
+});
+
+async function go(p) {
+  const qq = document.getElementById('q').value.trim();
+  if(!qq) return;
+  document.getElementById('res').innerHTML = '<div class="empty" style="color:#d4b96a">buscando...</div>';
+  document.getElementById('pag').innerHTML = '';
+  try {
+    const r = await fetch('/api?q=' + encodeURIComponent(qq) + '&p=' + p);
+    const items = await r.json();
+    render(items, p);
+  } catch(e) {
+    document.getElementById('res').innerHTML = '<div class="empty">Erro: ' + e.message + '</div>';
+  }
+}
+
+function render(items, p) {
+  const el = document.getElementById('res');
+  if(!items.length) { el.innerHTML = '<div class="empty">Sem resultados.</div>'; return; }
+  el.innerHTML = '<div class="status">' + items.length + ' resultados — página ' + p + '</div>';
+  items.forEach((x, i) => {
+    const d = document.createElement('div');
+    d.className = 'result';
+    d.style.animationDelay = (i * .04) + 's';
+    const domain = (() => { try { return new URL(x.url).hostname.replace('www.',''); } catch { return x.url; }})();
+
+    const rurl = document.createElement('div');
+    rurl.className = 'rurl';
+    rurl.textContent = domain;
+
+    const rtitle = document.createElement('div');
+    rtitle.className = 'rtitle';
+    rtitle.textContent = x.title;
+
+    const actions = document.createElement('div');
+    actions.className = 'r-actions';
+
+    const btnViewer = document.createElement('button');
+    btnViewer.className = 'r-btn';
+    btnViewer.textContent = '⊞ viewer';
+    btnViewer.onclick = () => fetch('/open?url=' + encodeURIComponent(x.url));
+
+    const btnTab = document.createElement('a');
+    btnTab.className = 'r-btn';
+    btnTab.textContent = '↗ nova aba';
+    btnTab.href = x.url;
+    btnTab.target = '_blank';
+
+    actions.appendChild(btnViewer);
+    actions.appendChild(btnTab);
+    d.appendChild(rurl);
+    d.appendChild(rtitle);
+
+    if(x.description) {
+      const desc = document.createElement('p');
+      desc.className = 'rdesc';
+      desc.textContent = x.description;
+      d.appendChild(desc);
+    }
+
+    d.appendChild(actions);
+    el.appendChild(d);
+  });
+
+  const pag = document.getElementById('pag');
+  [p-1, p, p+1, p+2].filter(n => n >= 1).forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'pb' + (n === p ? ' on' : '');
+    b.textContent = n;
+    b.onclick = () => go(n);
+    pag.appendChild(b);
+  });
+}
+</script>
+</body>
+</html>
